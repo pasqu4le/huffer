@@ -4,15 +4,23 @@ Huffer is a small compressor and decompressor that uses [canonical Huffman codes
 
 I wrote this as a "toy" project to explore and learn more about the Haskell programming language.
 
-Compiling and/or running
+Compiling and running
 ------------------------
-You will need the [GHC](https://www.haskell.org/ghc/) to compile huffer.
-At the time of writing every module used is included in the the Haskell standard library.
+You can use [cabal](https://www.haskell.org/cabal/) to compile and run huffer.
 
-__complile.sh__ is just a utility file that I use to have a single-step compilation.
-
-__huffer__ is the runnable binary compiled with ghc
-
+Compile and run with:
+```
+$ cabal run
+```
+Just compile with:
+```
+$ cabal configure
+$ cabal build
+```
+Install with:
+```
+$ cabal install
+```
 Command Line Arguments
 ----------------------
 You can see the command line arguments by running `huffer help`, that will tell you:
