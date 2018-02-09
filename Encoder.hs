@@ -1,12 +1,11 @@
 module Encoder (encode) where
 
-import BitUtils
+import Shared
 import System.FilePath
 import System.Directory
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Builder as BLB
 import Data.Binary.Put
-import Data.Int
 import Data.Word (Word8)
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
@@ -14,12 +13,6 @@ import qualified Data.IntMap.Strict as SIntMap
 import Data.List
 
 data HuffTree = Leaf Int Int | Node Int HuffTree HuffTree deriving Show
-data FileEntry = FileEntry {
-  origSize :: Int32,
-  comprSize :: Int32,
-  pathSize :: Int16,
-  path :: FilePath
-  } deriving (Show)
 type FileInfo = (FileEntry, IntMap Int)
 
 encode :: ([FilePath], FilePath) -> IO ()
@@ -30,7 +23,7 @@ encode (inFiles, outFile) = flatList inFiles >>= writeEncoding outFile
 writeEncoding :: FilePath -> [FilePath] -> IO ()
 writeEncoding outFile inFiles = do
   putStrLn "\nReading frequences and writing header"
-  filesInfo <- mapM generateInfo inFiles
+  filesInfo <- mapM readInfo inFiles
   BL.writeFile outFile . runPut . putHeader $ map fst filesInfo
   putStrLn "\nStarting compression"
   mapM_ (compress outFile) filesInfo
@@ -39,11 +32,16 @@ writeEncoding outFile inFiles = do
 compress :: FilePath -> FileInfo -> IO ()
 compress outFile (fileEntry, sizesMap) = do
   let filePath = path fileEntry
-      codebook = makeCodebook sizesMap
-      encoder = getHuffEncoder $ IntMap.toList sizesMap
-      putComp = putCompression codebook encoder
+      putComp = makePutComp sizesMap
   putStrLn $ "Compressing: " ++ filePath
   BL.readFile filePath >>= BL.appendFile outFile . runPut . putComp . BL.unpack
+
+readInfo :: FilePath -> IO FileInfo
+readInfo filePath = do
+  putStrLn $ "reading: " ++ filePath
+  fileSize <- getFileSize filePath
+  freqs <- readFrequences filePath
+  return $ generateInfo filePath fileSize freqs
 
 {- Put functions used by the IO functions -}
 
@@ -60,8 +58,14 @@ putEntry :: FileEntry -> Put
 putEntry fileEntry = do
   putInt32be $ origSize fileEntry
   putInt32be $ comprSize fileEntry
-  putInt16be $ pathSize fileEntry
+  putInt16be . fromIntegral . length $ path fileEntry
   putLazyByteString . BLB.toLazyByteString . BLB.string8 $ path fileEntry
+
+makePutComp :: IntMap Int -> [Word8] -> Put
+makePutComp sizesMap = putCompression codebook encoder
+  where
+    codebook = makeCodebook sizesMap
+    encoder = getHuffEncoder $ IntMap.toList sizesMap
 
 putCompression :: [Int] -> ([Word8] -> [Word8]) -> [Word8] -> Put
 putCompression codebook encoder input = do
@@ -73,18 +77,14 @@ putCodebook = mapM_ (putWord8 . fromIntegral)
 
 {- Functions to generate info required by the Put functions -}
 
-generateInfo :: FilePath -> IO FileInfo
-generateInfo filePath = do
-  fileSize <- getFileSize filePath
-  freqs <- readFrequences filePath
-  putStrLn $ "reading: " ++ filePath
-  let sizesMap = codesSize 0 $ treeFromFreqs freqs
-      compSize = 256 + compressedSize freqs sizesMap
-      fileEntry = FileEntry {origSize = fromInteger fileSize,
-                            comprSize = fromIntegral compSize,
-                            pathSize = fromIntegral $ length filePath,
-                            path = filePath}
-  return (fileEntry, sizesMap)
+generateInfo :: FilePath -> Integer -> IntMap Int -> FileInfo
+generateInfo filePath fileSize freqs = (fileEntry, sizesMap)
+  where
+    sizesMap = codesSize 0 $ treeFromFreqs freqs
+    compSize = 256 + compressedSize freqs sizesMap
+    fileEntry = FileEntry {origSize = fromInteger fileSize,
+                          comprSize = fromIntegral compSize,
+                          path = filePath}
 
 makeCodebook :: IntMap Int -> [Int]
 makeCodebook sizesMap = map (codebookLookup sizesMap) [0..255]

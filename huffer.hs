@@ -8,12 +8,13 @@ main :: IO ()
 main = getArgs >>= execute
 
 execute :: [String] -> IO ()
-execute ("encode":args) = parseAndRun encode args "output.huf"
-execute ("decode":args) = parseAndRun decode args "."
-execute ["content",fileName] = content fileName
-execute ("help":_) = mapM_ putStrLn helpLines
-execute [] = showInvalid "No action specified"
-execute (action:_) = showInvalid $ "Unknown action: " ++ action
+execute input = case input of
+  ("encode":args) -> parseAndRun encode args "output.huf"
+  ("decode":args) -> parseAndRun decode args "."
+  ["content",fileName] -> content fileName
+  ("help":_) -> mapM_ putStrLn helpLines
+  [] -> showInvalid "No action specified"
+  (action:_) -> showInvalid $ "Unknown action: " ++ action
 
 parseAndRun :: (([String], String) -> IO()) -> [String] -> String -> IO()
 parseAndRun action args defaultOut = case span (/="to") args of

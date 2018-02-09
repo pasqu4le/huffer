@@ -1,11 +1,10 @@
 module Decoder (decode, content) where
 
-import BitUtils
+import Shared
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Char8 as BLC
 import System.FilePath
 import System.Directory
-import Data.Int
 import Data.Binary.Get
 import Control.Monad
 import Data.List
@@ -13,13 +12,6 @@ import Data.Word (Word8)
 
 data HuffTree = Leaf Word8 | Node HuffTree HuffTree deriving Show
 type FileData = (FileEntry, BL.ByteString, BL.ByteString)
-data FileEntry = FileEntry {
-  origSize :: Int32,
-  comprSize :: Int32,
-  path :: FilePath
-  }
-instance Show FileEntry where
-  show (FileEntry o c n) = intercalate "\t" [show o, show c, n]
 
 {- IO functions to decode and display content -}
 
@@ -41,8 +33,7 @@ extract outDir filePath = do
 decompress :: FilePath -> FileData -> IO ()
 decompress outDir (fileEntry, codebook, comprData) = do
   let outPath = outDir </> path fileEntry
-      sizesList = zip [0..255] . map fromIntegral $ BL.unpack codebook
-      decoder = getHuffDecoder (fromIntegral $ origSize fileEntry) sizesList
+      decoder = decoderFromCodebook (fromIntegral $ origSize fileEntry) codebook
   putStrLn $ "Decompressing: " ++ outPath
   createDirectoryIfMissing True $ takeDirectory outPath
   BL.writeFile outPath . BL.pack . decoder $ BL.unpack comprData
@@ -99,6 +90,12 @@ getEntry = do
   return FileEntry {origSize = fromIntegral oSize,
                     comprSize = fromIntegral cSize,
                     path = BLC.unpack filePath}
+
+{- helper function to get get an huffDecoder from a codebook -}
+
+decoderFromCodebook :: Int -> BL.ByteString -> ([Word8] -> [Word8])
+decoderFromCodebook oSize codebook = getHuffDecoder oSize sizesList
+  where sizesList = zip [0..255] . map fromIntegral $ BL.unpack codebook
 
 {- Functions that work with lists of bits (big-endian) -}
 

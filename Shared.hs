@@ -1,4 +1,5 @@
-module BitUtils (
+module Shared (
+  FileEntry(..),
   BitList,
   emptyBitList,
   canonicalList,
@@ -9,6 +10,17 @@ module BitUtils (
 import Data.Bits
 import Data.List
 import Data.Word (Word8)
+import Data.Int
+
+{- entry for a compressed file -}
+
+data FileEntry = FileEntry {
+  origSize :: Int32,
+  comprSize :: Int32,
+  path :: FilePath
+  }
+instance Show FileEntry where
+  show (FileEntry o c n) = intercalate "\t" [show o, show c, n]
 
 {- implements a list of bits as bools (big-endian) and some operations -}
 
